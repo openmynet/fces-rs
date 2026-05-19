@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    <article role="main">
+          <section id="rust-sdk">
+<h1>Rust SDK<a class="headerlink" href="#rust-sdk" title="Link to this heading">#</a></h1>
+<section id="usearch-for-rust" class="">
+<h2>USearch for Rust<a class="headerlink" href="#usearch-for-rust" title="Link to this heading">#</a></h2>
+<p>Detailed symbol list and documentation for USearch Rust SDK can be found on <a class="reference external" href="https://docs.rs/usearch/latest/usearch/struct.Index.html">docs.rs</a>.</p>
+<section id="installation" class="">
+<h3>Installation<a class="headerlink" href="#installation" title="Link to this heading">#</a></h3>
+<div class="highlight-sh notranslate"><div class="highlight"><pre><span></span>cargo<span class="w"> </span>add<span class="w"> </span>usearch
+</pre></div>
+</div>
+<p>This will add a USearch dependency to your <code class="docutils literal notranslate"><span class="pre">Cargo.toml</span></code> file.</p>
+<div class="highlight-toml notranslate"><div class="highlight"><pre><span></span><span class="k">[dependencies]</span>
+<span class="n">usearch</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"..."</span>
+</pre></div>
+</div>
+<p>By default, <a class="reference external" href="https://github.com/ashvardanian/numkong">NumKong</a> is used to provide dynamic dispatch for SIMD operations.
+You can, however, override that by specifying custom features in your <code class="docutils literal notranslate"><span class="pre">Cargo.toml</span></code> file.
+To disable all features, use the following configuration:</p>
+<div class="highlight-toml notranslate"><div class="highlight"><pre><span></span><span class="k">[dependencies]</span>
+<span class="n">usearch</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">version</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s2">"..."</span><span class="p">,</span><span class="w"> </span><span class="n">default-features</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="kc">false</span><span class="w"> </span><span class="p">}</span>
+</pre></div>
+</div>
+<p>To enable specific features, use the following configuration:</p>
+<div class="highlight-toml notranslate"><div class="highlight"><pre><span></span><span class="k">[dependencies]</span>
+<span class="n">usearch</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">version</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s2">"..."</span><span class="p">,</span><span class="w"> </span><span class="n">features</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="p">[</span><span class="s2">"numkong"</span><span class="p">,</span><span class="w"> </span><span class="s2">"openmp"</span><span class="p">,</span><span class="w"> </span><span class="s2">"fp16lib"</span><span class="p">]</span><span class="w"> </span><span class="p">}</span>
+</pre></div>
+</div>
+<p>OpenMP (<code class="docutils literal notranslate"><span class="pre">openmp</span></code>) will use the OpenMP runtime for parallelism.
+It may not be available on all platforms, but on Linux it will lead to better performance and lower latency of small-batch operations on multi-core CPUs.
+The <code class="docutils literal notranslate"><span class="pre">fp16lib</span></code> flag will bring in the C-layer <code class="docutils literal notranslate"><span class="pre">fp16</span></code> library to emulate half-precision floating point operations on older CPUs, where it may not be natively supported.</p>
+</section>
+<section id="quickstart" class="">
+<h3>Quickstart<a class="headerlink" href="#quickstart" title="Link to this heading">#</a></h3>
+<div class="highlight-rust notranslate"><div class="highlight"><pre><span></span><span class="k">use</span><span class="w"> </span><span class="n">usearch</span>::<span class="p">{</span><span class="n">Index</span><span class="p">,</span><span class="w"> </span><span class="n">IndexOptions</span><span class="p">,</span><span class="w"> </span><span class="n">MetricKind</span><span class="p">,</span><span class="w"> </span><span class="n">ScalarKind</span><span class="p">,</span><span class="w"> </span><span class="n">new_index</span><span class="p">};</span>
+
+<span class="kd">let</span><span class="w"> </span><span class="n">options</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">IndexOptions</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">dimensions</span>: <span class="mi">3</span><span class="p">,</span><span class="w"> </span><span class="c1">// necessary for most metric kinds</span>
+<span class="w">    </span><span class="n">metric</span>: <span class="nc">MetricKind</span>::<span class="n">IP</span><span class="p">,</span><span class="w"> </span><span class="c1">// or ::L2sq, ::Cos ...</span>
+<span class="w">    </span><span class="n">quantization</span>: <span class="nc">ScalarKind</span>::<span class="n">BF16</span><span class="p">,</span><span class="w"> </span><span class="c1">// or ::F32, ::F16, ::E5M2, ::E4M3, ::E3M2, ::E2M3, ::U8, ::I8, ::B1x8 ...</span>
+<span class="w">    </span><span class="n">connectivity</span>: <span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="c1">// zero for auto</span>
+<span class="w">    </span><span class="n">expansion_add</span>: <span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="c1">// zero for auto</span>
+<span class="w">    </span><span class="n">expansion_search</span>: <span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="c1">// zero for auto</span>
+<span class="p">};</span>
+
+<span class="kd">let</span><span class="w"> </span><span class="n">index</span>: <span class="nc">Index</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">new_index</span><span class="p">(</span><span class="o">&amp;</span><span class="n">options</span><span class="p">).</span><span class="n">unwrap</span><span class="p">();</span>
+
+<span class="fm">assert!</span><span class="p">(</span><span class="n">index</span><span class="p">.</span><span class="n">reserve</span><span class="p">(</span><span class="mi">10</span><span class="p">).</span><span class="n">is_ok</span><span class="p">());</span>
+<span class="fm">assert!</span><span class="p">(</span><span class="n">index</span><span class="p">.</span><span class="n">capacity</span><span class="p">()</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="mi">10</span><span class="p">);</span>
+<span class="fm">assert!</span><span class="p">(</span><span class="n">index</span><span class="p">.</span><span class="n">connectivity</span><span class="p">()</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="mi">0</span><span class="p">);</span>
+<span class="fm">assert_eq!</span><span class="p">(</span><span class="n">index</span><span class="p">.</span><span class="n">dimensions</span><span class="p">(),</span><span class="w"> </span><span class="mi">3</span><span class="p">);</span>
+<span class="fm">assert_eq!</span><span class="p">(</span><span class="n">index</span><span class="p">.</span><span class="n">size</span><span class="p">(),</span><span class="w"> </span><span class="mi">0</span><span class="p">);</span>
+
+<span class="kd">let</span><span class="w"> </span><span class="n">first</span>: <span class="p">[</span><span class="kt">f32</span><span class="p">;</span><span class="w"> </span><span class="mi">3</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="mf">0.2</span><span class="p">,</span><span class="w"> </span><span class="mf">0.1</span><span class="p">,</span><span class="w"> </span><span class="mf">0.2</span><span class="p">];</span>
+<span class="kd">let</span><span class="w"> </span><span class="n">second</span>: <span class="p">[</span><span class="kt">f32</span><span class="p">;</span><span class="w"> </span><span class="mi">3</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="mf">0.2</span><span class="p">,</span><span class="w"> </span><span class="mf">0.1</span><span class="p">,</span><span class="w"> </span><span class="mf">0.2</span><span class="p">];</span>
+
+<span class="fm">assert!</span><span class="p">(</span><span class="n">index</span><span class="p">.</span><span class="n">add</span><span class="p">(</span><span class="mi">42</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">first</span><span class="p">).</span><span class="n">is_ok</span><span class="p">());</span>
+<span class="fm">assert!</span><span class="p">(</span><span class="n">index</span><span class="p">.</span><span class="n">add</span><span class="p">(</span><span class="mi">43</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">second</span><span class="p">).</span><span class="n">is_ok</span><span class="p">());</span>
+<span class="fm">assert_eq!</span><span class="p">(</span><span class="n">index</span><span class="p">.</span><span class="n">size</span><span class="p">(),</span><span class="w"> </span><span class="mi">2</span><span class="p">);</span>
+
+<span class="c1">// Read back the tags</span>
+<span class="kd">let</span><span class="w"> </span><span class="n">results</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">index</span><span class="p">.</span><span class="n">search</span><span class="p">(</span><span class="o">&amp;</span><span class="n">first</span><span class="p">,</span><span class="w"> </span><span class="mi">10</span><span class="p">).</span><span class="n">unwrap</span><span class="p">();</span>
+<span class="fm">assert_eq!</span><span class="p">(</span><span class="n">results</span><span class="p">.</span><span class="n">keys</span><span class="p">.</span><span class="n">len</span><span class="p">(),</span><span class="w"> </span><span class="mi">2</span><span class="p">);</span>
+</pre></div>
+</div>
+</section>
+<section id="serialization" class="">
+<h3>Serialization<a class="headerlink" href="#serialization" title="Link to this heading">#</a></h3>
+<p>To save and load the index from disk, use the following methods:</p>
+<div class="highlight-rust notranslate"><div class="highlight"><pre><span></span><span class="fm">assert!</span><span class="p">(</span><span class="n">index</span><span class="p">.</span><span class="n">save</span><span class="p">(</span><span class="s">"index.usearch"</span><span class="p">).</span><span class="n">is_ok</span><span class="p">());</span>
+<span class="fm">assert!</span><span class="p">(</span><span class="n">index</span><span class="p">.</span><span class="n">load</span><span class="p">(</span><span class="s">"index.usearch"</span><span class="p">).</span><span class="n">is_ok</span><span class="p">());</span>
+<span class="fm">assert!</span><span class="p">(</span><span class="n">index</span><span class="p">.</span><span class="n">view</span><span class="p">(</span><span class="s">"index.usearch"</span><span class="p">).</span><span class="n">is_ok</span><span class="p">());</span>
+</pre></div>
+</div>
+<p>Viewing the index does not load the data into memory, but allows you to inspect and traverse the index structure from external memory using memory-mapping.
+Similarly, serializing to/from in-memory buffers is supported.
+So you can memory-map the index file manually, and later call <code class="docutils literal notranslate"><span class="pre">view_from_buffer</span></code> or one of its siblings.</p>
+<div class="highlight-rust notranslate"><div class="highlight"><pre><span></span><span class="fm">assert!</span><span class="p">(</span><span class="n">index</span><span class="p">.</span><span class="n">save_to_buffer</span><span class="p">(</span><span class="o">&amp;</span><span class="k">mut</span><span class="w"> </span><span class="n">serialization_buffer</span><span class="p">).</span><span class="n">is_ok</span><span class="p">());</span>
+<span class="fm">assert!</span><span class="p">(</span><span class="n">index</span><span class="p">.</span><span class="n">load_from_buffer</span><span class="p">(</span><span class="o">&amp;</span><span class="n">serialization_buffer</span><span class="p">).</span><span class="n">is_ok</span><span class="p">());</span>
+<span class="fm">assert!</span><span class="p">(</span><span class="n">index</span><span class="p">.</span><span class="n">view_from_buffer</span><span class="p">(</span><span class="o">&amp;</span><span class="n">serialization_buffer</span><span class="p">).</span><span class="n">is_ok</span><span class="p">());</span>
+</pre></div>
+</div>
+<p>To reopen an index without already knowing how it was built, read its header with <code class="docutils literal notranslate"><span class="pre">Index::metadata</span></code> or use the one-shot <code class="docutils literal notranslate"><span class="pre">Index::restore</span></code>:</p>
+<div class="highlight-rust notranslate"><div class="highlight"><pre><span></span><span class="kd">let</span><span class="w"> </span><span class="n">meta</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Index</span>::<span class="n">metadata</span><span class="p">(</span><span class="s">"index.usearch"</span><span class="p">).</span><span class="n">unwrap</span><span class="p">();</span>
+<span class="fm">println!</span><span class="p">(</span><span class="s">"dim={}, metric={:?}, dtype={:?}"</span><span class="p">,</span><span class="w"> </span><span class="n">meta</span><span class="p">.</span><span class="n">dimensions</span><span class="p">,</span><span class="w"> </span><span class="n">meta</span><span class="p">.</span><span class="n">metric</span><span class="p">,</span><span class="w"> </span><span class="n">meta</span><span class="p">.</span><span class="n">quantization</span><span class="p">);</span>
+
+<span class="kd">let</span><span class="w"> </span><span class="n">index</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Index</span>::<span class="n">restore</span><span class="p">(</span><span class="s">"index.usearch"</span><span class="p">).</span><span class="n">unwrap</span><span class="p">();</span>
+<span class="fm">assert_eq!</span><span class="p">(</span><span class="n">index</span><span class="p">.</span><span class="n">metric_kind</span><span class="p">(),</span><span class="w"> </span><span class="n">meta</span><span class="p">.</span><span class="n">metric</span><span class="p">);</span>
+<span class="fm">assert_eq!</span><span class="p">(</span><span class="n">index</span><span class="p">.</span><span class="n">scalar_kind</span><span class="p">(),</span><span class="w"> </span><span class="n">meta</span><span class="p">.</span><span class="n">quantization</span><span class="p">);</span>
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">Index::restore_view</span></code> and <code class="docutils literal notranslate"><span class="pre">Index::restore_from_buffer</span></code> are the memory-mapping and in-memory counterparts.</p>
+</section>
+<section id="metrics" class="">
+<h3>Metrics<a class="headerlink" href="#metrics" title="Link to this heading">#</a></h3>
+<p>USearch comes pre-packaged with NumKong, bringing over 100 SIMD-accelerated distance kernels for x86 and ARM architectures.
+That includes:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">MetricKind::IP</span></code> - Inner Product metric, defined as <code class="docutils literal notranslate"><span class="pre">IP</span> <span class="pre">=</span> <span class="pre">1</span> <span class="pre">-</span> <span class="pre">sum(a[i]</span> <span class="pre">*</span> <span class="pre">b[i])</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">MetricKind::L2sq</span></code> - Squared Euclidean Distance metric, defined as <code class="docutils literal notranslate"><span class="pre">L2</span> <span class="pre">=</span> <span class="pre">sum((a[i]</span> <span class="pre">-</span> <span class="pre">b[i])^2)</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">MetricKind::Cos</span></code> - Cosine Similarity metric, defined as <code class="docutils literal notranslate"><span class="pre">Cos</span> <span class="pre">=</span> <span class="pre">1</span> <span class="pre">-</span> <span class="pre">sum(a[i]</span> <span class="pre">*</span> <span class="pre">b[i])</span> <span class="pre">/</span> <span class="pre">(sqrt(sum(a[i]^2)</span> <span class="pre">*</span> <span class="pre">sqrt(sum(b[i]^2)))</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">MetricKind::Pearson</span></code> - Pearson Correlation metric.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">MetricKind::Haversine</span></code> - Haversine (Great Circle) Distance metric.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">MetricKind::Divergence</span></code> - Jensen Shannon Divergence metric.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">MetricKind::Hamming</span></code> - Bit-level Hamming Distance metric, defined as the number of differing bits.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">MetricKind::Tanimoto</span></code> - Bit-level Tanimoto (Jaccard) metric, defined as the number of intersecting bits divided by the number of union bits.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">MetricKind::Sorensen</span></code> - Bit-level Sorensen metric.</p></li>
+</ul>
+<section id="user-defined-metrics" class="">
+<h4>User-Defined Metrics<a class="headerlink" href="#user-defined-metrics" title="Link to this heading">#</a></h4>
+<p>Custom metrics allow for the implementation of specific algorithms to measure the distance or similarity between vectors in the index.
+To use a custom metric with USearch, define a function that matches the expected signature and pass it to your index on creation, or later with <code class="docutils literal notranslate"><span class="pre">change_metric</span></code>.
+Let’s say you are implementing a weighted distance function to search through joint embeddings of images and textual descriptions of some products in a catalog, taking some <a class="reference external" href="https://github.com/unum-cloud/uform">UForm</a> or CLIP-like models.</p>
+<div class="highlight-rust notranslate"><div class="highlight"><pre><span></span><span class="k">use</span><span class="w"> </span><span class="n">numkong</span>::<span class="n">SpatialSimilarity</span><span class="p">;</span>
+
+<span class="kd">let</span><span class="w"> </span><span class="n">image_dimensions</span>: <span class="kt">usize</span> <span class="o">=</span><span class="w"> </span><span class="mi">768</span><span class="p">;</span>
+<span class="kd">let</span><span class="w"> </span><span class="n">text_dimensions</span>: <span class="kt">usize</span> <span class="o">=</span><span class="w"> </span><span class="mi">512</span><span class="p">;</span>
+<span class="kd">let</span><span class="w"> </span><span class="n">image_weights</span>: <span class="kt">f32</span> <span class="o">=</span><span class="w"> </span><span class="mf">0.7</span><span class="p">;</span>
+<span class="kd">let</span><span class="w"> </span><span class="n">text_weights</span>: <span class="kt">f32</span> <span class="o">=</span><span class="w"> </span><span class="mf">0.9</span><span class="p">;</span>
+
+<span class="kd">let</span><span class="w"> </span><span class="n">weighted_distance</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">Box</span>::<span class="n">new</span><span class="p">(</span><span class="k">move</span><span class="w"> </span><span class="o">|</span><span class="n">a</span>: <span class="o">*</span><span class="k">const</span><span class="w"> </span><span class="kt">f32</span><span class="p">,</span><span class="w"> </span><span class="n">b</span>: <span class="o">*</span><span class="k">const</span><span class="w"> </span><span class="kt">f32</span><span class="o">|</span><span class="w"> </span><span class="k">unsafe</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">a_slice</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">std</span>::<span class="n">slice</span>::<span class="n">from_raw_parts</span><span class="p">(</span><span class="n">a</span><span class="p">,</span><span class="w"> </span><span class="n">image_dimensions</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">text_dimensions</span><span class="p">);</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">b_slice</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">std</span>::<span class="n">slice</span>::<span class="n">from_raw_parts</span><span class="p">(</span><span class="n">b</span><span class="p">,</span><span class="w"> </span><span class="n">image_dimensions</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">text_dimensions</span><span class="p">);</span>
+
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">image_similarity</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kt">f32</span>::<span class="n">cosine</span><span class="p">(</span><span class="n">a_slice</span><span class="p">[</span><span class="mi">0</span><span class="o">..</span><span class="n">image_dimensions</span><span class="p">],</span><span class="w"> </span><span class="n">b_slice</span><span class="p">[</span><span class="mi">0</span><span class="o">..</span><span class="n">image_dimensions</span><span class="p">]);</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">text_similarity</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kt">f32</span>::<span class="n">cosine</span><span class="p">(</span><span class="n">a_slice</span><span class="p">[</span><span class="n">image_dimensions</span><span class="o">..</span><span class="p">],</span><span class="w"> </span><span class="n">b_slice</span><span class="p">[</span><span class="n">image_dimensions</span><span class="o">..</span><span class="p">]);</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">similarity</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">image_weights</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">image_similarity</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">text_weights</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">text_similarity</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="p">(</span><span class="n">image_weights</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">text_weights</span><span class="p">);</span>
+
+<span class="w">    </span><span class="mf">1.0</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">similarity</span>
+<span class="p">});</span>
+<span class="n">index</span><span class="p">.</span><span class="n">change_metric</span><span class="p">(</span><span class="n">weighted_distance</span><span class="p">);</span>
+</pre></div>
+</div>
+<p>You can always revert back to one of the native metrics by calling:</p>
+<div class="highlight-rust notranslate"><div class="highlight"><pre><span></span><span class="n">index</span><span class="p">.</span><span class="n">change_metric_kind</span><span class="p">(</span><span class="n">MetricKind</span>::<span class="n">Cos</span><span class="p">);</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="filtering-with-predicates">
+<h3>Filtering with Predicates<a class="headerlink" href="#filtering-with-predicates" title="Link to this heading">#</a></h3>
+<p>Sometimes you may want to cross-reference search-results against some external database or filter them based on some criteria.
+In most engines, you’d have to manually perform paging requests, successively filtering the results.
+In USearch you can simply pass a predicate function to the search method, which will be applied directly during graph traversal.</p>
+<div class="highlight-rust notranslate"><div class="highlight"><pre><span></span><span class="kd">let</span><span class="w"> </span><span class="n">is_odd</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">|</span><span class="n">key</span>: <span class="nc">Key</span><span class="o">|</span><span class="w"> </span><span class="n">key</span><span class="w"> </span><span class="o">%</span><span class="w"> </span><span class="mi">2</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="kd">let</span><span class="w"> </span><span class="n">query</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="fm">vec!</span><span class="p">[</span><span class="mf">0.2</span><span class="p">,</span><span class="w"> </span><span class="mf">0.1</span><span class="p">,</span><span class="w"> </span><span class="mf">0.2</span><span class="p">,</span><span class="w"> </span><span class="mf">0.1</span><span class="p">,</span><span class="w"> </span><span class="mf">0.3</span><span class="p">];</span>
+<span class="kd">let</span><span class="w"> </span><span class="n">results</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">index</span><span class="p">.</span><span class="n">filtered_search</span><span class="p">(</span><span class="o">&amp;</span><span class="n">query</span><span class="p">,</span><span class="w"> </span><span class="mi">10</span><span class="p">,</span><span class="w"> </span><span class="n">is_odd</span><span class="p">).</span><span class="n">unwrap</span><span class="p">();</span>
+<span class="fm">assert!</span><span class="p">(</span>
+<span class="w">    </span><span class="n">results</span><span class="p">.</span><span class="n">keys</span><span class="p">.</span><span class="n">iter</span><span class="p">().</span><span class="n">all</span><span class="p">(</span><span class="o">|&amp;</span><span class="n">key</span><span class="o">|</span><span class="w"> </span><span class="n">key</span><span class="w"> </span><span class="o">%</span><span class="w"> </span><span class="mi">2</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">1</span><span class="p">),</span>
+<span class="w">    </span><span class="s">"All keys must be odd"</span>
+<span class="p">);</span>
+</pre></div>
+</div>
+</section>
+<section id="quantization-and-custom-scalar-types">
+<h3>Quantization and Custom Scalar Types<a class="headerlink" href="#quantization-and-custom-scalar-types" title="Link to this heading">#</a></h3>
+<p>USearch supports the Rust-native <code class="docutils literal notranslate"><span class="pre">f32</span></code> and <code class="docutils literal notranslate"><span class="pre">f64</span></code> scalar types, as well as the <code class="docutils literal notranslate"><span class="pre">i8</span></code> for quantized 8-bit scalars.
+Going beyond that, USearch supports non-native <code class="docutils literal notranslate"><span class="pre">f16</span></code> and <code class="docutils literal notranslate"><span class="pre">b1x8</span></code> for half-precision floating point and binary vectors, respectively.</p>
+<section id="half-precision-floating-point">
+<h4>Half Precision Floating Point<a class="headerlink" href="#half-precision-floating-point" title="Link to this heading">#</a></h4>
+<p>Rust has no native support for half-precision floating-point numbers, but USearch provides a <code class="docutils literal notranslate"><span class="pre">f16</span></code> type.
+It has no advanced functionality - it is a transparent wrapper around <code class="docutils literal notranslate"><span class="pre">i16</span></code> and can be used with <code class="docutils literal notranslate"><span class="pre">half</span></code> or any other half-precision library.
+Assuming USearch uses the IEEE 754 no conversion is needed, you can <code class="docutils literal notranslate"><span class="pre">unsafe</span></code>-cast the outputs of other IEEE-compliant libraries to <code class="docutils literal notranslate"><span class="pre">usearch::f16</span></code>.</p>
+<div class="highlight-rust notranslate"><div class="highlight"><pre><span></span><span class="k">use</span><span class="w"> </span><span class="n">usearch</span>::<span class="n">f16</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">USearchF16</span><span class="p">;</span>
+<span class="k">use</span><span class="w"> </span><span class="n">half</span>::<span class="n">f16</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">HalfF16</span><span class="p">;</span>
+
+<span class="kd">let</span><span class="w"> </span><span class="n">vector_a</span>: <span class="nb">Vec</span><span class="o">&lt;</span><span class="n">HalfF16</span><span class="o">&gt;</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">..</span><span class="p">.</span>
+<span class="kd">let</span><span class="w"> </span><span class="n">vector_b</span>: <span class="nb">Vec</span><span class="o">&lt;</span><span class="n">HalfF16</span><span class="o">&gt;</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">..</span><span class="p">.</span>
+
+<span class="kd">let</span><span class="w"> </span><span class="n">buffer_a</span>: <span class="kp">&amp;</span><span class="p">[</span><span class="n">USearchF16</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">unsafe</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">std</span>::<span class="n">slice</span>::<span class="n">from_raw_parts</span><span class="p">(</span><span class="n">a_half</span><span class="p">.</span><span class="n">as_ptr</span><span class="p">()</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="o">*</span><span class="k">const</span><span class="w"> </span><span class="n">USearchF16</span><span class="p">,</span><span class="w"> </span><span class="n">a_half</span><span class="p">.</span><span class="n">len</span><span class="p">())</span><span class="w"> </span><span class="p">};</span>
+<span class="kd">let</span><span class="w"> </span><span class="n">buffer_b</span>: <span class="kp">&amp;</span><span class="p">[</span><span class="n">USearchF16</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">unsafe</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">std</span>::<span class="n">slice</span>::<span class="n">from_raw_parts</span><span class="p">(</span><span class="n">b_half</span><span class="p">.</span><span class="n">as_ptr</span><span class="p">()</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="o">*</span><span class="k">const</span><span class="w"> </span><span class="n">USearchF16</span><span class="p">,</span><span class="w"> </span><span class="n">b_half</span><span class="p">.</span><span class="n">len</span><span class="p">())</span><span class="w"> </span><span class="p">};</span>
+
+<span class="n">index</span><span class="p">.</span><span class="n">add</span><span class="p">(</span><span class="mi">42</span><span class="p">,</span><span class="w"> </span><span class="n">buffer_a</span><span class="p">);</span>
+<span class="n">index</span><span class="p">.</span><span class="n">add</span><span class="p">(</span><span class="mi">43</span><span class="p">,</span><span class="w"> </span><span class="n">buffer_b</span><span class="p">);</span>
+</pre></div>
+</div>
+</section>
+<section id="binary-vectors">
+<h4>Binary Vectors<a class="headerlink" href="#binary-vectors" title="Link to this heading">#</a></h4>
+<p>USearch also implements binary distance functions and natively supports bit-vectors.
+If you initialize the index with <code class="docutils literal notranslate"><span class="pre">quantization:</span> <span class="pre">ScalarKind::B1x8</span></code>, you can add floating-point vectors and they will be quantized mapping positive values to <code class="docutils literal notranslate"><span class="pre">1</span></code> and negative and zero values to <code class="docutils literal notranslate"><span class="pre">0</span></code>.
+Alternatively, you can use the <code class="docutils literal notranslate"><span class="pre">b1x8</span></code> type to represent packed binary vectors directly.</p>
+<div class="highlight-rs notranslate"><div class="highlight"><pre><span></span><span class="kd">let</span><span class="w"> </span><span class="n">index</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Index</span>::<span class="n">new</span><span class="p">(</span><span class="o">&amp;</span><span class="n">IndexOptions</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">dimensions</span>: <span class="mi">8</span><span class="p">,</span>
+<span class="w">    </span><span class="n">metric</span>: <span class="nc">MetricKind</span>::<span class="n">Hamming</span><span class="p">,</span>
+<span class="w">    </span><span class="n">quantization</span>: <span class="nc">ScalarKind</span>::<span class="n">B1x8</span><span class="p">,</span>
+<span class="w">    </span><span class="o">..</span><span class="nb">Default</span>::<span class="n">default</span><span class="p">()</span>
+<span class="p">})</span>
+<span class="p">.</span><span class="n">unwrap</span><span class="p">();</span>
+
+<span class="c1">// Binary vectors represented as `b1x8` slices</span>
+<span class="kd">let</span><span class="w"> </span><span class="n">vector42</span>: <span class="nb">Vec</span><span class="o">&lt;</span><span class="n">b1x8</span><span class="o">&gt;</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="fm">vec!</span><span class="p">[</span><span class="n">b1x8</span><span class="p">(</span><span class="mb">0b00001111</span><span class="p">)];</span>
+<span class="kd">let</span><span class="w"> </span><span class="n">vector43</span>: <span class="nb">Vec</span><span class="o">&lt;</span><span class="n">b1x8</span><span class="o">&gt;</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="fm">vec!</span><span class="p">[</span><span class="n">b1x8</span><span class="p">(</span><span class="mb">0b11110000</span><span class="p">)];</span>
+<span class="kd">let</span><span class="w"> </span><span class="n">query</span>: <span class="nb">Vec</span><span class="o">&lt;</span><span class="n">b1x8</span><span class="o">&gt;</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="fm">vec!</span><span class="p">[</span><span class="n">b1x8</span><span class="p">(</span><span class="mb">0b01111000</span><span class="p">)];</span>
+
+<span class="c1">// Adding binary vectors to the index</span>
+<span class="n">index</span><span class="p">.</span><span class="n">reserve</span><span class="p">(</span><span class="mi">10</span><span class="p">).</span><span class="n">unwrap</span><span class="p">();</span>
+<span class="n">index</span><span class="p">.</span><span class="n">add</span><span class="p">(</span><span class="mi">42</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">vector42</span><span class="p">).</span><span class="n">unwrap</span><span class="p">();</span>
+<span class="n">index</span><span class="p">.</span><span class="n">add</span><span class="p">(</span><span class="mi">43</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">vector43</span><span class="p">).</span><span class="n">unwrap</span><span class="p">();</span>
+
+<span class="kd">let</span><span class="w"> </span><span class="n">results</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">index</span><span class="p">.</span><span class="n">search</span><span class="p">(</span><span class="o">&amp;</span><span class="n">query</span><span class="p">,</span><span class="w"> </span><span class="mi">5</span><span class="p">).</span><span class="n">unwrap</span><span class="p">();</span>
+
+<span class="c1">// Validate the search results based on Hamming distance</span>
+<span class="fm">assert_eq!</span><span class="p">(</span><span class="n">results</span><span class="p">.</span><span class="n">keys</span><span class="p">.</span><span class="n">len</span><span class="p">(),</span><span class="w"> </span><span class="mi">2</span><span class="p">);</span>
+<span class="fm">assert_eq!</span><span class="p">(</span><span class="n">results</span><span class="p">.</span><span class="n">keys</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span><span class="w"> </span><span class="mi">43</span><span class="p">);</span>
+<span class="fm">assert_eq!</span><span class="p">(</span><span class="n">results</span><span class="p">.</span><span class="n">distances</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span><span class="w"> </span><span class="mf">2.0</span><span class="p">);</span><span class="w"> </span><span class="c1">// 2 bits differ between query and vector43</span>
+<span class="fm">assert_eq!</span><span class="p">(</span><span class="n">results</span><span class="p">.</span><span class="n">keys</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span><span class="w"> </span><span class="mi">42</span><span class="p">);</span>
+<span class="fm">assert_eq!</span><span class="p">(</span><span class="n">results</span><span class="p">.</span><span class="n">distances</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span><span class="w"> </span><span class="mf">6.0</span><span class="p">);</span><span class="w"> </span><span class="c1">// 6 bits differ between query and vector42</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="performance-tuning">
+<h3>Performance Tuning<a class="headerlink" href="#performance-tuning" title="Link to this heading">#</a></h3>
+<p>To optimize the performance of the index, you can adjust the expansion values used during index creation and search operations.
+Higher expansion values will lead to better search accuracy at the cost of slightly increased memory usage, but potentially much higher search times.
+Following methods are available to adjust the expansion values:</p>
+<div class="highlight-rs notranslate"><div class="highlight"><pre><span></span><span class="fm">println!</span><span class="p">(</span><span class="s">"Add expansion: {}"</span><span class="p">,</span><span class="w"> </span><span class="n">index</span><span class="p">.</span><span class="n">expansion_add</span><span class="p">());</span>
+<span class="fm">println!</span><span class="p">(</span><span class="s">"Search expansion: {}"</span><span class="p">,</span><span class="w"> </span><span class="n">index</span><span class="p">.</span><span class="n">expansion_search</span><span class="p">());</span>
+<span class="n">index</span><span class="p">.</span><span class="n">change_expansion_add</span><span class="p">(</span><span class="mi">32</span><span class="p">);</span>
+<span class="n">index</span><span class="p">.</span><span class="n">change_expansion_search</span><span class="p">(</span><span class="mi">32</span><span class="p">);</span>
+</pre></div>
+</div>
+<p>Optimizing hardware utilization, you may want to check the SIMD hardware acceleration capabilities of the index and memory consumption.
+The first will print the codename of the most advanced SIMD instruction set supported by the CPU and used by the index.
+The second will print the memory usage of the index in bytes.</p>
+<div class="highlight-rs notranslate"><div class="highlight"><pre><span></span><span class="fm">println!</span><span class="p">(</span><span class="s">"Hardware acceleration: {}"</span><span class="p">,</span><span class="w"> </span><span class="n">index</span><span class="p">.</span><span class="n">hardware_acceleration</span><span class="p">());</span>
+<span class="fm">println!</span><span class="p">(</span><span class="s">"Memory usage: {}"</span><span class="p">,</span><span class="w"> </span><span class="n">index</span><span class="p">.</span><span class="n">memory_usage</span><span class="p">());</span>
+</pre></div>
+</div>
+</section>
+</section>
+</section>
+
+        </article>
+</body>
+</html>
