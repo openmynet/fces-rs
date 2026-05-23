@@ -1,4 +1,5 @@
 use ndarray::Array2;
+use simsimd::SpatialSimilarity;
 use usearch::{Index, IndexOptions, MetricKind, ScalarKind, new_index};
 
 use crate::error::FcesError;
@@ -47,21 +48,18 @@ fn populate_index(index: &Index, data: &Array2<f32>) -> Result<(), FcesError> {
     Ok(())
 }
 
-/// 计算两个原始向量的余弦相似度。
+/// 计算两个原始向量的余弦相似度（使用 simsimd SIMD 加速）。
 ///
-/// `cos_sim = dot(a, b) / (|a| · |b|)`
+/// `cos_sim = cos(a, b)`，调用 `f32::cos` 返回余弦距离 (1 - cos_sim)，
+/// 本函数将其转为相似度。
 ///
 /// # 参数
-/// - `a`, `b`: 原始特征行视图。
-/// - `norm_a`, `norm_b`: 预计算的 L2 范数。
-fn cosine_similarity(
-    a: ndarray::ArrayView1<f32>,
-    b: ndarray::ArrayView1<f32>,
-    norm_a: f32,
-    norm_b: f32,
-) -> f32 {
-    let dot: f32 = a.iter().zip(b.iter()).map(|(&x, &y)| x * y).sum();
-    dot / (norm_a * norm_b)
+/// - `a`, `b`: 原始特征行切片（需连续内存）。
+fn cosine_similarity(a: &[f32], b: &[f32]) -> f32 {
+    match <f32 as SpatialSimilarity>::cos(a, b) {
+        Some(dist) => 1.0 - dist as f32,
+        None => 0.0,
+    }
 }
 
 /// 构建 KNN 图（纯内积搜索路径）。
@@ -142,16 +140,6 @@ pub fn build_knn_graph(
         .map_err(|e| FcesError::UsSearch(e.to_string()))?;
     populate_index(&cos_index, &normalized)?;
 
-    // precompute original-feature norms for accurate cosine similarity
-    let orig_norms: Vec<f32> = features
-        .rows()
-        .into_iter()
-        .map(|row| {
-            let sq_sum: f32 = row.iter().map(|&x| x * x).sum();
-            sq_sum.sqrt().max(1e-12)
-        })
-        .collect();
-
     let ip_options = make_index_options(dim, MetricKind::IP);
 
     let mut nbrs = Array2::<u32>::zeros((n, effective_k));
@@ -163,25 +151,22 @@ pub fn build_knn_graph(
             FcesError::UsSearch(format!("第 {} 行内存不连续", i))
         })?;
         let query_orig = features.row(i);
-        let norm_i = orig_norms[i];
 
         // Stage 2a: cosine search for 2k candidates
         let cos_results = cos_index
             .search(query_slice, cos_k)
             .map_err(|e| FcesError::UsSearch(e.to_string()))?;
 
-        // Stage 2b: filter by cosine similarity on original features
+        // Stage 2b: filter by cosine similarity on original features (SIMD)
         let mut filtered: Vec<usize> = Vec::with_capacity(cos_results.keys.len());
         for &key in &cos_results.keys {
             let cand = key as usize;
-            let cos_sim = cosine_similarity(
-                query_orig,
-                features.row(cand),
-                norm_i,
-                orig_norms[cand],
-            );
-            if cos_sim >= threshold {
-                filtered.push(cand);
+            let cand_row = features.row(cand);
+            if let (Some(a_slice), Some(b_slice)) = (query_orig.as_slice(), cand_row.as_slice()) {
+                let cos_sim = cosine_similarity(a_slice, b_slice);
+                if cos_sim >= threshold {
+                    filtered.push(cand);
+                }
             }
         }
 

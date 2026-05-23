@@ -226,6 +226,7 @@ version = "0.1.0"
 dependencies = [
  "ndarray",
  "ndarray-npy",
+ "simsimd",
  "thiserror",
  "usearch",
 ]
@@ -544,6 +545,15 @@ name = "simd-adler32"
 version = "0.3.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "703d5c7ef118737c72f1af64ad2f6f8c5e1921f818cdcb97b8fe6fc69bf66214"
+
+[[package]]
+name = "simsimd"
+version = "6.5.16"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f4fb3bc3cdce07a7d7d4caa4c54f8aa967f6be41690482b54b24100a2253fa70"
+dependencies = [
+ "cc",
+]
 
 [[package]]
 name = "strsim"

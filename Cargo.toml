@@ -7,6 +7,7 @@ edition = "2024"
 usearch = {version="2.25.2", default-features = false}
 ndarray = "0.17.2"
 thiserror = "2.0.18"
+simsimd = "6.5.16"
 
 [dev-dependencies]
 ndarray-npy = "0.10.0"
