@@ -24,7 +24,7 @@ fn test_cluster_pipeline() {
         return;
     }
 
-    let clusters = fces::cluster(&features, Some(0.12), None)
+    let clusters = fces::cluster(&features, Some(0.12), None, None)
         .expect("聚类执行失败");
 
     let total: usize = clusters.iter().map(|c| c.len()).sum();

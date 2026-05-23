@@ -13,7 +13,7 @@ fn main() {
         return;
     }
 
-    match fces::cluster(&features, Some(0.12), None) {
+    match fces::cluster(&features, Some(0.12), None, None) {
         Ok(clusters) => {
             println!("聚类结果: {} 个节点 → {} 个簇", n, clusters.len());
             for (i, c) in clusters.iter().enumerate() {

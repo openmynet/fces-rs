@@ -30,8 +30,8 @@ use ndarray_npy::read_npy;
 use fces::cluster;
 
 let features: Array2<f32> = read_npy("data/features.npy")?;
-let clusters = cluster(&features, Some(0.22), None);
-let clusters = cluster(&features, None, Some(true));             // 默认 theta, 去掉单元素簇
+let clusters = cluster(&features, Some(0.22), None, None);
+let clusters = cluster(&features, None, Some(true), None);       // 默认 theta, 去掉单元素簇
 ```
 
 ## 示例
