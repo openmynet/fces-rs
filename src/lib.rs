@@ -51,9 +51,11 @@ fn run_pipeline(
     drop_singletons: bool,
     cosine_threshold: Option<f32>,
 ) -> Result<Vec<Vec<usize>>, FcesError> {
-    let knn = knn::build_knn_graph(features, k, cosine_threshold)?;
+    // KNN 构建始终使用全量邻居（不做余弦预过滤），
+    // 余弦门槛在 clustering 阶段过滤原始相似度不足的边。
+    let knn = knn::build_knn_graph(features, k, None)?;
     let nep_dists = nep::compute_nep(&knn);
-    let mut clusters = clustering::run(&knn, &nep_dists, theta)?;
+    let mut clusters = clustering::run(&knn, &nep_dists, theta, cosine_threshold)?;
 
     if drop_singletons {
         clusters.retain(|c| c.len() > 1);

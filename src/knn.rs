@@ -1,16 +1,10 @@
 use ndarray::Array2;
-use simsimd::SpatialSimilarity;
 use usearch::{Index, IndexOptions, MetricKind, ScalarKind, new_index};
 
 use crate::error::FcesError;
 use crate::math::l2_normalize;
 use crate::types::KnnGraph;
 
-/// 创建 USearch 索引配置。
-///
-/// # 参数
-/// - `dim`: 向量维度。
-/// - `metric`: 距离度量（IP / Cos / L2sq 等）。
 fn make_index_options(dim: usize, metric: MetricKind) -> IndexOptions {
     IndexOptions {
         dimensions: dim,
@@ -23,14 +17,6 @@ fn make_index_options(dim: usize, metric: MetricKind) -> IndexOptions {
     }
 }
 
-/// 向索引中批量添加向量，key 使用行索引。
-///
-/// 上级流程：被 `build_knn_graph_ip_only` 和 `build_knn_graph` 调用。
-/// 下级流程：逐行追加到 USearch HNSW 索引。
-///
-/// # 参数
-/// - `index`: 已创建的 USearch 索引。
-/// - `data`: 行优先的二维矩阵，每行为一个向量。
 fn populate_index(index: &Index, data: &Array2<f32>) -> Result<(), FcesError> {
     let (n, _) = data.dim();
     index
@@ -48,75 +34,14 @@ fn populate_index(index: &Index, data: &Array2<f32>) -> Result<(), FcesError> {
     Ok(())
 }
 
-/// 计算两个原始向量的余弦相似度（使用 simsimd SIMD 加速）。
+/// 构建 KNN 图。
 ///
-/// `cos_sim = cos(a, b)`，调用 `f32::cos` 返回余弦距离 (1 - cos_sim)，
-/// 本函数将其转为相似度。
-///
-/// # 参数
-/// - `a`, `b`: 原始特征行切片（需连续内存）。
-fn cosine_similarity(a: &[f32], b: &[f32]) -> f32 {
-    match <f32 as SpatialSimilarity>::cos(a, b) {
-        Some(dist) => 1.0 - dist as f32,
-        None => 0.0,
-    }
-}
-
-/// 构建 KNN 图（纯内积搜索路径）。
-///
-/// 用途：对 L2 归一化后的特征矩阵直接做 USearch IP 搜索，
-///       为每个节点找到 k 个最近邻。不使用余弦预过滤。
-///
-/// 上级流程：由 `build_knn_graph` 在 `cosine_threshold ≤ 0` 时分派。
-/// 下级流程：USearch HNSW 近似搜索 → `KnnGraph`。
-///
-/// # 参数
-/// - `normalized`: L2 归一化后的特征矩阵 (N × ndim)。
-/// - `k`: 每个节点的邻居数。
-///
-/// # 返回
-/// - `KnnGraph`: 邻居索引矩阵和内积值矩阵。
-fn build_knn_graph_ip_only(
-    normalized: &Array2<f32>,
-    k: usize,
-) -> Result<KnnGraph, FcesError> {
-    let (n, dim) = normalized.dim();
-    let options = make_index_options(dim, MetricKind::IP);
-    let index: Index =
-        new_index(&options).map_err(|e| FcesError::UsSearch(e.to_string()))?;
-    populate_index(&index, normalized)?;
-
-    let mut nbrs = Array2::<u32>::zeros((n, k));
-    let mut dists = Array2::<f32>::zeros((n, k));
-
-    for i in 0..n {
-        let query = normalized.row(i);
-        let query_slice = query.as_slice().ok_or_else(|| {
-            FcesError::UsSearch(format!("第 {} 行内存不连续", i))
-        })?;
-        let results = index
-            .search(query_slice, k)
-            .map_err(|e| FcesError::UsSearch(e.to_string()))?;
-
-        let count = results.keys.len().min(k);
-        for j in 0..count {
-            nbrs[[i, j]] = results.keys[j] as u32;
-            dists[[i, j]] = 1.0 - results.distances[j];
-        }
-    }
-
-    Ok(KnnGraph { nbrs, dists })
-}
-
-/// 构建 KNN 图，支持可选的余弦预过滤 + 内积重排。
-///
-/// 若 `cosine_threshold` 为 `None` 或 `≤ 0.0`，使用原始内积搜索；
-/// 否则使用两阶段搜索：先用余弦找到 2k 个候选，按原始特征余弦相似度过滤，
-/// 再对过滤结果建立二次 IP 索引进行精确重排。
+/// 对 L2 归一化后的特征矩阵做 USearch IP 搜索，
+/// 为每个节点找到 k 个最近邻（余弦预过滤已在 clustering 阶段处理）。
 pub fn build_knn_graph(
     features: &Array2<f32>,
     k: usize,
-    cosine_threshold: Option<f32>,
+    _cosine_threshold: Option<f32>,
 ) -> Result<KnnGraph, FcesError> {
     let normalized = l2_normalize(features);
     let (n, dim) = normalized.dim();
@@ -127,78 +52,27 @@ pub fn build_knn_graph(
 
     let effective_k = k.min(n);
 
-    let threshold = cosine_threshold.unwrap_or(0.0);
-    if threshold <= 0.0 {
-        return build_knn_graph_ip_only(&normalized, effective_k);
-    }
-
-    let cos_k = (k * 2).min(n);
-
-    // Stage 1: global cosine index
-    let cos_options = make_index_options(dim, MetricKind::Cos);
-    let cos_index: Index = new_index(&cos_options)
-        .map_err(|e| FcesError::UsSearch(e.to_string()))?;
-    populate_index(&cos_index, &normalized)?;
-
-    let ip_options = make_index_options(dim, MetricKind::IP);
+    let options = make_index_options(dim, MetricKind::IP);
+    let index: Index =
+        new_index(&options).map_err(|e| FcesError::UsSearch(e.to_string()))?;
+    populate_index(&index, &normalized)?;
 
     let mut nbrs = Array2::<u32>::zeros((n, effective_k));
     let mut dists = Array2::<f32>::zeros((n, effective_k));
 
     for i in 0..n {
-        let query_row = normalized.row(i);
-        let query_slice = query_row.as_slice().ok_or_else(|| {
+        let query = normalized.row(i);
+        let query_slice = query.as_slice().ok_or_else(|| {
             FcesError::UsSearch(format!("第 {} 行内存不连续", i))
         })?;
-        let query_orig = features.row(i);
-
-        // Stage 2a: cosine search for 2k candidates
-        let cos_results = cos_index
-            .search(query_slice, cos_k)
-            .map_err(|e| FcesError::UsSearch(e.to_string()))?;
-
-        // Stage 2b: filter by cosine similarity on original features (SIMD)
-        let mut filtered: Vec<usize> = Vec::with_capacity(cos_results.keys.len());
-        for &key in &cos_results.keys {
-            let cand = key as usize;
-            let cand_row = features.row(cand);
-            if let (Some(a_slice), Some(b_slice)) = (query_orig.as_slice(), cand_row.as_slice()) {
-                let cos_sim = cosine_similarity(a_slice, b_slice);
-                if cos_sim >= threshold {
-                    filtered.push(cand);
-                }
-            }
-        }
-
-        if filtered.is_empty() {
-            continue;
-        }
-
-        // Stage 3: build secondary IP index from filtered candidates
-        let ip_index: Index = new_index(&ip_options)
-            .map_err(|e| FcesError::UsSearch(e.to_string()))?;
-        ip_index
-            .reserve(filtered.len())
-            .map_err(|e| FcesError::UsSearch(e.to_string()))?;
-        for (j, &orig_idx) in filtered.iter().enumerate() {
-            let cand_row = normalized.row(orig_idx);
-            let vec = cand_row.as_slice().ok_or_else(|| {
-                FcesError::UsSearch(format!("第 {} 行内存不连续", orig_idx))
-            })?;
-            ip_index
-                .add(j as u64, vec)
-                .map_err(|e| FcesError::UsSearch(e.to_string()))?;
-        }
-
-        // Stage 4: IP re-rank on secondary index
-        let ip_results = ip_index
+        let results = index
             .search(query_slice, effective_k)
             .map_err(|e| FcesError::UsSearch(e.to_string()))?;
 
-        let count = ip_results.keys.len().min(effective_k);
+        let count = results.keys.len().min(effective_k);
         for j in 0..count {
-            nbrs[[i, j]] = filtered[ip_results.keys[j] as usize] as u32;
-            dists[[i, j]] = 1.0 - ip_results.distances[j];
+            nbrs[[i, j]] = results.keys[j] as u32;
+            dists[[i, j]] = 1.0 - results.distances[j];
         }
     }
 
@@ -211,12 +85,11 @@ mod tests {
     use ndarray::arr2;
 
     #[test]
-    fn test_build_knn_graph_ip_only() {
+    fn test_build_knn_graph() {
         let features = arr2(&[[1.0, 0.0], [0.0, 1.0], [1.0, 1.0]]);
         let graph = build_knn_graph(&features, 2, None).unwrap();
         assert_eq!(graph.nbrs.shape(), &[3, 2]);
         assert_eq!(graph.dists.shape(), &[3, 2]);
-        // each node should find at least itself or neighbor
         for i in 0..3 {
             let row = graph.nbrs.row(i);
             let dist_row = graph.dists.row(i);
@@ -225,20 +98,5 @@ mod tests {
                 assert!(dist_row[j] >= 0.0 && dist_row[j] <= 1.0);
             }
         }
-    }
-
-    #[test]
-    fn test_build_knn_graph_two_stage() {
-        let features = arr2(&[[1.0, 0.0], [0.0, 1.0], [0.9, 0.1], [0.1, 0.9]]);
-        let graph = build_knn_graph(&features, 2, Some(0.5)).unwrap();
-        assert_eq!(graph.nbrs.shape(), &[4, 2]);
-        assert_eq!(graph.dists.shape(), &[4, 2]);
-    }
-
-    #[test]
-    fn test_build_knn_graph_threshold_zero() {
-        let features = arr2(&[[1.0, 0.0], [0.0, 1.0]]);
-        let graph = build_knn_graph(&features, 1, Some(0.0)).unwrap();
-        assert_eq!(graph.nbrs.shape(), &[2, 1]);
     }
 }

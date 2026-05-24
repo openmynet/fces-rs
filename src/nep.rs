@@ -83,35 +83,35 @@ pub fn compute_nep(knn: &KnnGraph) -> Array2<f32> {
             pos[nbr] = j as i32;
         }
 
-        // 3b. 对每个邻居 j，计算二阶概率
-        for j in 0..k {
-            let nbr_j = knn.nbrs[[i, j]] as usize;
-
-            // 填充 y 矩阵
-            y.fill(0.0);
-            for r in 0..k {
-                let nbr_jr = knn.nbrs[[nbr_j, r]] as usize;
-                let ppos = pos[nbr_jr];
+        // 3b. 填充 y 矩阵（一次性构建，对所有邻居 i 的所有邻居）
+        // y[r][c] = sum_{where nbr_of_nbr∈i's list} P[nbr][idx_of_shared_nbr]
+        // 对应参考代码中双层循环: x_ind(邻居维度) × y_ind(邻居的邻居维度)
+        y.fill(0.0);
+        for r in 0..k {
+            let nbr_of_i = knn.nbrs[[i, r]] as usize; // i 的第 r 个邻居
+            for c in 0..k {
+                let shared = knn.nbrs[[nbr_of_i, c]] as usize; // 该邻居的第 c 个邻居
+                let ppos = pos[shared];
                 if ppos >= 0 {
-                    y[r * k + ppos as usize] = p[[nbr_j, r]];
+                    // y[r][ppos] += ...  参考代码使用 = 赋值（最后一写有效）
+                    y[r * k + ppos as usize] = p[[nbr_of_i, c]];
                 }
             }
+        }
 
-            // 计算 tmp_dist
+        // 3c. 对每个邻居 j 计算 NEP 距离
+        for j in 0..k {
             tmp_dist.fill(0.0);
-            for r in 0..k {
-                for c in 0..k {
-                    let y_val = y[r * k + c];
-                    if y_val != 0.0 {
-                        tmp_dist[r] += (p[[i, r]] + y_val) / 2.0;
-                    }
+            for l in 0..k {
+                let y_val = y[j * k + l];
+                if y_val != 0.0 {
+                    tmp_dist[j] += (p[[i, l]] + y_val) / 2.0;
                 }
             }
-
             nep_dists[[i, j]] = 1.0 - tmp_dist[j];
         }
 
-        // 3c. 清理位置映射
+        // 3d. 清理位置映射
         for j in 0..k {
             let nbr = knn.nbrs[[i, j]] as usize;
             pos[nbr] = -1;

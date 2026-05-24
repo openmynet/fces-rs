@@ -7,16 +7,20 @@ use crate::types::KnnGraph;
 
 /// FC-ES 聚类核心。
 ///
+/// # 参数
+/// - `cosine_threshold`: 原始余弦相似度过滤阈值。`None` 或 `≤ 0` 跳过。
+///
 /// # 返回
 /// - `Result<Vec<Vec<usize>>, FcesError>`: 每个聚类的成员索引列表。
 pub fn run(
     knn: &KnnGraph,
     nep_dists: &Array2<f32>,
     theta: f32,
+    cosine_threshold: Option<f32>,
 ) -> Result<Vec<Vec<usize>>, FcesError> {
     let n = knn.nbrs.dim().0;
 
-    let (links, singles) = get_links(knn, nep_dists, theta);
+    let (links, singles) = get_links(knn, nep_dists, theta, cosine_threshold);
 
     let infomap_results = crate::infomap::run_infomap(&links, n)?;
 
@@ -88,8 +92,10 @@ pub fn get_links(
     knn: &KnnGraph,
     nep_dists: &Array2<f32>,
     theta: f32,
+    cosine_threshold: Option<f32>,
 ) -> (HashMap<(usize, usize), f32>, Vec<usize>) {
     let (n, k) = knn.nbrs.dim();
+    let cos_th = cosine_threshold.unwrap_or(0.0);
     let mut links: HashMap<(usize, usize), f32> = HashMap::new();
     let mut singles: Vec<usize> = Vec::new();
 
@@ -102,6 +108,15 @@ pub fn get_links(
 
             // 跳过自环
             if i == neighbor {
+                continue;
+            }
+
+            // 原始余弦相似度过滤
+            if cos_th > 0.0 && knn.dists[[i, j]] < cos_th {
+                early_stop = true;
+                if early_stop {
+                    break;
+                }
                 continue;
             }
 
