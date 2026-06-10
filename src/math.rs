@@ -58,21 +58,22 @@ pub fn softmax_rows(dists: &Array2<f32>, sigma: f32) -> Array2<f32> {
     result
 }
 
-/// 内积值 → L2 平方距离（假设向量已 L2 归一化）。
+/// 内积值 → L2 平方距离。
 ///
-/// 用途：将 USearch 返回的内积值转为 L2² 距离。
-///       l2² = 2 - 2 * ip（因为 |x|² + |y|² - 2·xy = 2 - 2·xy）。
-///
-/// 上级流程：由 nep::compute_nep 调用。
-/// 下级流程：逐元素 2.0 - 2.0 * ip → clip 到 [0, 1] → 返回 Array2。
+/// 匹配 Python 参考实现：
+///   1. clip(ip_dists, 0.0, 1.0)   — 忽略负内积（Python nep_distance2.py:69）
+///   2. l2² = 2 - 2*ip             — 2-2*cos_sim，值域 [0, 2]
 ///
 /// # 参数
-/// - `ip_dists`: 内积值矩阵 (N, k)，值域约 [0, 1]。
+/// - `ip_dists`: 内积值（余弦相似度）矩阵 (N, k)。
 ///
 /// # 返回
-/// - `Array2<f32>`: L2 平方距离矩阵 (N, k)，值域 [0, 1]。
+/// - `Array2<f32>`: L2 平方距离矩阵 (N, k)，值域 [0, 2]。
 pub fn ip_to_l2sq(ip_dists: &Array2<f32>) -> Array2<f32> {
-    ip_dists.mapv(|ip| (2.0 - 2.0 * ip).clamp(0.0, 1.0))
+    ip_dists.mapv(|ip| {
+        let ip = ip.clamp(0.0, 1.0);
+        2.0 - 2.0 * ip
+    })
 }
 
 #[cfg(test)]
@@ -111,10 +112,11 @@ mod tests {
 
     #[test]
     fn test_ip_to_l2sq() {
-        let ip = arr2(&[[1.0, 0.5, 0.0]]);
+        let ip = arr2(&[[1.0, 0.5, 0.0, -0.5]]);
         let l2 = ip_to_l2sq(&ip);
-        assert!((l2[[0, 0]] - 0.0).abs() < 1e-6);
-        assert!((l2[[0, 1]] - 1.0).abs() < 1e-6);
-        assert!((l2[[0, 2]] - 1.0).abs() < 1e-6); // clipped from 2.0
+        assert!((l2[[0, 0]] - 0.0).abs() < 1e-6); // 2 - 2*1.0 = 0
+        assert!((l2[[0, 1]] - 1.0).abs() < 1e-6); // 2 - 2*0.5 = 1
+        assert!((l2[[0, 2]] - 2.0).abs() < 1e-6); // 2 - 2*0.0 = 2
+        assert!((l2[[0, 3]] - 2.0).abs() < 1e-6); // clip(-0.5,0,1)=0 → 2 - 0 = 2
     }
 }
