@@ -14,13 +14,14 @@ FC-ES (Face Cluster Early Stop) 无监督人脸聚类算法 Rust 实现。
 |------|------|------|
 | 一 | `knn.rs` | USearch 内积搜索，构建 KNN 图 |
 | 二 | `nep.rs` | Neighbor-based Edge Probability 二阶距离 |
-| 三 | `clustering.rs` | Early Stop 连接 + InfoMap 社区发现 |
+| 三 | `clustering.rs` | Early Stop 连接 + 社区发现 (Infomap / Leiden) |
 
 ## 依赖
 
 - [usearch](https://github.com/unum-cloud/usearch) — HNSW 近似最近邻搜索
 - [ndarray](https://github.com/rust-ndarray/ndarray) — N 维数组运算
-- [Infomap](https://mapequation.github.io/infomap/) — 社区发现 CLI（需单独安装）
+- [graphrs](https://github.com/malcolmvr/graphrs) — 图分析与社区发现（Leiden 算法兜底）
+- [Infomap](https://mapequation.github.io/infomap/) — 社区发现 CLI（可选，优先使用；不可用时自动回退 graphrs Leiden）
 
 ## 使用
 
@@ -51,6 +52,12 @@ cargo run --example basic
   簇 3 (1 人): [0]
   ...
 ```
+
+## 环境变量
+
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `FCES_TEMP_DIR` | 系统临时目录 | Infomap 运行时的工作区目录（`edges.txt` 及输出文件存放于此） |
 
 ## 测试
 

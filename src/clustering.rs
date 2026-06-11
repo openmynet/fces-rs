@@ -22,13 +22,13 @@ pub fn run(
 
     let (links, singles) = get_links(knn, nep_dists, theta, cosine_threshold);
 
-    let infomap_results = crate::infomap::run_infomap(&links, n)?;
+    let community_results = crate::community::detect_communities(&links, n)?;
 
     // Step 3: 按模块分组（保留 .tree 文件行序）
     let mut module_order: Vec<u32> = Vec::new();
     let mut module_nodes: HashMap<u32, Vec<usize>> = HashMap::new();
 
-    for &(node_id, module) in &infomap_results {
+    for &(node_id, module) in &community_results {
         if !module_nodes.contains_key(&module) {
             module_order.push(module);
         }

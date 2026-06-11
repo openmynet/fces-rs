@@ -8,7 +8,7 @@ fn main() {
     let (n, dim) = features.dim();
     println!("加载特征: {} × {}", n, dim);
 
-    if !fces::infomap::has_infomap() {
+    if !fces::community::has_infomap() {
         eprintln!("Infomap 未安装，跳过聚类。请将 Infomap 放入 PATH 或项目根目录。");
         return;
     }

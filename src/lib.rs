@@ -4,7 +4,7 @@ mod knn;
 mod nep;
 mod clustering;
 pub mod error;
-pub mod infomap;
+pub mod community;
 
 use ndarray::Array2;
 

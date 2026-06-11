@@ -689,7 +689,7 @@ fc-es/
 │   ├── nep.rs               # NEP 二阶距离 (阶段二)
 │   ├── clustering.rs        # FC-ES 聚类 (阶段三)
 │   ├── evaluation.rs        # 评估指标 (阶段四)
-│   ├── infomap.rs           # InfoMap 社区发现 (移植或FFI)
+│   ├── community.rs         # 社区发现 (InfoMap CLI / graphrs Louvain)
 │   ├── io.rs                # 文件读写 (.bin, .meta, 中间格式)
 │   ├── types.rs             # 核心数据结构
 │   └── math.rs              # L2归一化, 距离计算, softmax 等

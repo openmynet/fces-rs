@@ -18,7 +18,7 @@ fn test_cluster_pipeline() {
 
     let (n, _dim) = features.dim();
 
-    if !fces::infomap::has_infomap() {
+    if !fces::community::has_infomap() {
         eprintln!("跳过聚类管线测试：Infomap 未安装或不在 PATH/当前目录中");
         eprintln!("请将 Infomap 可执行文件放入 PATH 或项目根目录");
         return;

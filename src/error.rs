@@ -23,6 +23,10 @@ pub enum FcesError {
     #[error("InfoMap 解析错误: {0}")]
     InfomapParse(String),
 
+    /// 社区发现失败（graphrs 备选方案）。
+    #[error("社区发现失败: {0}")]
+    CommunityDetection(String),
+
     /// 输入数据无效。
     #[error("无效输入: {0}")]
     InvalidInput(String),
