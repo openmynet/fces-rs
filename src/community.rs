@@ -3,14 +3,24 @@ use std::fs::{self, File};
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use graphrs::{Edge, Graph, GraphSpecs};
 
 use crate::error::FcesError;
 
 static INFOMAP_COUNTER: AtomicU64 = AtomicU64::new(0);
+
+/// Windows 平台下设置 CREATE_NO_WINDOW 标志，禁止控制台弹窗。
+#[cfg(windows)]
+fn suppress_no_window(cmd: &mut std::process::Command) {
+    use std::os::windows::process::CommandExt;
+    cmd.creation_flags(0x08000000);
+}
+
+#[cfg(not(windows))]
+fn suppress_no_window(_cmd: &mut std::process::Command) {}
 
 /// 检查 Infomap 是否可用。
 pub fn has_infomap() -> bool {
@@ -35,7 +45,10 @@ fn find_infomap_path() -> Option<String> {
         }
     }
 
-    let probe = Command::new("Infomap").arg("--version").output();
+    let mut probe_cmd = Command::new("Infomap");
+    probe_cmd.arg("--version");
+    suppress_no_window(&mut probe_cmd);
+    let probe = probe_cmd.output();
     if probe.map_or(false, |o| o.status.success()) {
         return Some("Infomap".to_string());
     }
@@ -70,23 +83,28 @@ pub fn run_infomap(
     write_edge_list(links, &edge_path)?;
 
     let infomap_path = find_infomap();
-    let output = Command::new(&infomap_path)
+    let mut infomap_cmd = Command::new(&infomap_path);
+    infomap_cmd
         .current_dir(&tmp_dir)
         .arg("edges.txt")
         .arg(".")
         .arg("--two-level")
         .arg("--directed")
-        .arg("--silent")
-        .output()
-        .map_err(|e| FcesError::InfomapExecution(format!(
-            "无法执行 Infomap: {}. 请确认已安装并在 PATH 或当前目录中", e
-        )))?;
+        .arg("--silent");
+    suppress_no_window(&mut infomap_cmd);
+    let output = infomap_cmd.output().map_err(|e| {
+        FcesError::InfomapExecution(format!(
+            "无法执行 Infomap: {}. 请确认已安装并在 PATH 或当前目录中",
+            e
+        ))
+    })?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
         let stdout = String::from_utf8_lossy(&output.stdout);
         return Err(FcesError::InfomapExecution(format!(
-            "stdout: {}\nstderr: {}", stdout, stderr
+            "stdout: {}\nstderr: {}",
+            stdout, stderr
         )));
     }
 
@@ -114,9 +132,7 @@ pub fn detect_communities(
     run_leiden(links)
 }
 
-fn run_leiden(
-    links: &HashMap<(usize, usize), f32>,
-) -> Result<Vec<(usize, u32)>, FcesError> {
+fn run_leiden(links: &HashMap<(usize, usize), f32>) -> Result<Vec<(usize, u32)>, FcesError> {
     let (graph, node_list) = build_undirected_graph(links)
         .map_err(|e| FcesError::CommunityDetection(format!("图构建失败: {}", e)))?;
 
@@ -154,10 +170,7 @@ mod tests {
     }
 
     fn nodes_in_links(links: &HashMap<(usize, usize), f32>) -> Vec<usize> {
-        let mut nodes: Vec<usize> = links
-            .keys()
-            .flat_map(|&(s, d)| vec![s, d])
-            .collect();
+        let mut nodes: Vec<usize> = links.keys().flat_map(|&(s, d)| vec![s, d]).collect();
         nodes.sort();
         nodes.dedup();
         nodes
@@ -346,9 +359,12 @@ mod tests {
         }
         // 全对称三角图: 每条边双向等权，两者应一致
         let links = m(&[
-            (0, 1, 1.0), (1, 0, 1.0),
-            (1, 2, 1.0), (2, 1, 1.0),
-            (0, 2, 1.0), (2, 0, 1.0),
+            (0, 1, 1.0),
+            (1, 0, 1.0),
+            (1, 2, 1.0),
+            (2, 1, 1.0),
+            (0, 2, 1.0),
+            (2, 0, 1.0),
         ]);
         let infomap = run_infomap(&links, 3).unwrap();
         let leiden = run_leiden(&links).unwrap();
@@ -376,8 +392,10 @@ mod tests {
         }
         // 两个强团由弱单向边桥接: A↔B(强) C↔D(强) B→C(弱单向)
         let links = m(&[
-            (0, 1, 1.0), (1, 0, 1.0),
-            (2, 3, 1.0), (3, 2, 1.0),
+            (0, 1, 1.0),
+            (1, 0, 1.0),
+            (2, 3, 1.0),
+            (3, 2, 1.0),
             (1, 2, 0.1),
         ]);
         let infomap = run_infomap(&links, 4).unwrap();
@@ -410,8 +428,7 @@ fn build_undirected_graph(
         .collect();
     nodes.sort();
 
-    let index: HashMap<usize, usize> =
-        nodes.iter().enumerate().map(|(i, &id)| (id, i)).collect();
+    let index: HashMap<usize, usize> = nodes.iter().enumerate().map(|(i, &id)| (id, i)).collect();
 
     let mut merged: HashMap<(usize, usize), f64> = HashMap::new();
     for ((src, dst), weight) in links {
@@ -430,10 +447,7 @@ fn build_undirected_graph(
     Ok((graph, nodes))
 }
 
-fn write_edge_list(
-    links: &HashMap<(usize, usize), f32>,
-    path: &Path,
-) -> Result<(), FcesError> {
+fn write_edge_list(links: &HashMap<(usize, usize), f32>, path: &Path) -> Result<(), FcesError> {
     let mut file = File::create(path)?;
     writeln!(file, "# FC-ES edge list")?;
     for ((src, dst), weight) in links {
@@ -450,7 +464,9 @@ fn find_tree_file(dir: &PathBuf) -> Result<PathBuf, FcesError> {
             return Ok(path);
         }
     }
-    Err(FcesError::InfomapParse("未找到 InfoMap 输出的 .tree 文件".into()))
+    Err(FcesError::InfomapParse(
+        "未找到 InfoMap 输出的 .tree 文件".into(),
+    ))
 }
 
 pub fn parse_tree_file(path: &Path) -> Result<Vec<(usize, u32)>, FcesError> {
