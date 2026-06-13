@@ -19,9 +19,8 @@ fn test_cluster_pipeline() {
     let (n, _dim) = features.dim();
 
     if !fces::community::has_infomap() {
-        eprintln!("跳过聚类管线测试：Infomap 未安装或不在 PATH/当前目录中");
-        eprintln!("请将 Infomap 可执行文件放入 PATH 或项目根目录");
-        return;
+        eprintln!("提示: Infomap 不可用，将回退 Leiden 算法");
+        eprintln!("  请设置 FCES_INFOMAP_DIR 指向 Infomap 可执行文件所在目录，或放入 PATH/当前目录");
     }
 
     let clusters = fces::cluster(&features, Some(0.12), None, None)

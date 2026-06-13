@@ -44,6 +44,36 @@ pub fn cluster_with_k(
     run_pipeline(features, k, theta, drop, cosine_threshold)
 }
 
+/// FC-ES 人脸聚类（纯 Infomap，不可用时报错而不回退 Leiden）。
+///
+/// # 参数
+/// 同 [`cluster_with_k`]。
+pub fn cluster_infomap(
+    features: &Array2<f32>,
+    k: Option<usize>,
+    theta: Option<f32>,
+    drop_singletons: Option<bool>,
+    cosine_threshold: Option<f32>,
+) -> Result<Vec<Vec<usize>>, FcesError> {
+    let (n, _) = features.dim();
+    let k = k.unwrap_or_else(|| 80.min(n));
+    let theta = theta.unwrap_or(0.22);
+    let drop = drop_singletons.unwrap_or(false);
+
+    let knn = knn::build_knn_graph(features, k, None)?;
+    let nep_dists = nep::compute_nep(&knn);
+    let (links, singles) = clustering::get_links(&knn, &nep_dists, theta, cosine_threshold);
+
+    let community_results = community::run_infomap(&links, n)?;
+    let mut clusters = clustering::assemble_clusters(&community_results, &singles, n);
+
+    if drop {
+        clusters.retain(|c| c.len() > 1);
+    }
+
+    Ok(clusters)
+}
+
 fn run_pipeline(
     features: &Array2<f32>,
     k: usize,

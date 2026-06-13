@@ -29,14 +29,22 @@ pub fn has_infomap() -> bool {
 
 /// 查找 Infomap 可执行文件路径。
 fn find_infomap_path() -> Option<String> {
-    if let Ok(cwd) = std::env::current_dir() {
-        if let Ok(entries) = fs::read_dir(&cwd) {
+    let search_dirs: Vec<PathBuf> = [
+        std::env::current_dir().ok(),
+        std::env::var("FCES_INFOMAP_DIR").ok().map(PathBuf::from),
+    ]
+    .into_iter()
+    .flatten()
+    .collect();
+
+    for dir in &search_dirs {
+        if let Ok(entries) = fs::read_dir(dir) {
             for entry in entries.filter_map(|e| e.ok()) {
                 let file_name = entry.file_name();
                 let name_lower = file_name.to_string_lossy().to_lowercase();
                 let is_match = name_lower == "infomap" || name_lower == "infomap.exe";
                 if is_match {
-                    let full_path = cwd.join(&file_name);
+                    let full_path = dir.join(&file_name);
                     if full_path.is_file() {
                         return Some(full_path.to_string_lossy().to_string());
                     }

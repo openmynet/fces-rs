@@ -24,23 +24,36 @@ pub fn run(
 
     let community_results = crate::community::detect_communities(&links, n)?;
 
-    // Step 3: 按模块分组（保留 .tree 文件行序）
+    Ok(assemble_clusters(&community_results, &singles, n))
+}
+
+/// 从社区发现结果组装最终簇列表。
+///
+/// 职责：模块分组 → 哨兵剔除 → 孤立节点合并。
+///
+/// # 参数
+/// - `community_results`: (node_id, module_index) 列表（如 InfoMap/Leiden 输出）。
+/// - `singles`: 未建立任何边的孤立节点列表。
+/// - `n`: 合法节点数 [0, n)，用于剔除哨兵。
+pub fn assemble_clusters(
+    community_results: &[(usize, u32)],
+    singles: &[usize],
+    n: usize,
+) -> Vec<Vec<usize>> {
     let mut module_order: Vec<u32> = Vec::new();
     let mut module_nodes: HashMap<u32, Vec<usize>> = HashMap::new();
 
-    for &(node_id, module) in &community_results {
+    for &(node_id, module) in community_results {
         if !module_nodes.contains_key(&module) {
             module_order.push(module);
         }
         module_nodes.entry(module).or_default().push(node_id);
     }
 
-    // Step 4: 剔除哨兵节点（InfoMap 哨兵节点 ID 超出合法范围 [0, n)）
     for nodes in module_nodes.values_mut() {
         nodes.retain(|&node_id| node_id < n);
     }
 
-    // Step 5: 构建有效簇列表
     let mut node_to_label: HashMap<usize, u32> = HashMap::new();
     let mut clusters: Vec<Vec<usize>> = Vec::new();
     let mut next_label: u32 = 0;
@@ -58,8 +71,7 @@ pub fn run(
         }
     }
 
-    // Step 6: 合并孤立节点
-    for &single in &singles {
+    for &single in singles {
         if !node_to_label.contains_key(&single) {
             node_to_label.insert(single, next_label);
             clusters.push(vec![single]);
@@ -67,7 +79,7 @@ pub fn run(
         }
     }
 
-    Ok(clusters)
+    clusters
 }
 
 /// 构建连接图（Early Stopping）。

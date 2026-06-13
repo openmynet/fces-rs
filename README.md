@@ -35,6 +35,17 @@ let clusters = cluster(&features, Some(0.22), None, None);
 let clusters = cluster(&features, None, Some(true), None);       // 默认 theta, 去掉单元素簇
 ```
 
+### 纯 Infomap 模式
+
+`cluster` 在 Infomap 不可用时自动回退 Leiden。若需强制使用 Infomap（不可用时报错），使用 `cluster_infomap`：
+
+```rust
+use fces::cluster_infomap;
+
+let clusters = cluster_infomap(&features, None, Some(0.12), None, None)?;
+// 签名: (features, k, theta, drop_singletons, cosine_threshold)
+```
+
 ## 示例
 
 ```bash
@@ -57,6 +68,7 @@ cargo run --example basic
 
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
+| `FCES_INFOMAP_DIR` | — | Infomap 可执行文件所在目录（优先于 PATH 搜索） |
 | `FCES_TEMP_DIR` | 系统临时目录 | Infomap 运行时的工作区目录（`edges.txt` 及输出文件存放于此） |
 
 ## 测试
@@ -67,6 +79,7 @@ cargo test
 
 # 仅集成测试（需要 Infomap CLI 和 data/features.npy）
 cargo test --test cluster_test
+cargo test --test infomap_test
 
 # 仅单元测试
 cargo test --lib
