@@ -31,6 +31,7 @@ pub fn has_infomap() -> bool {
 fn find_infomap_path() -> Option<String> {
     let search_dirs: Vec<PathBuf> = [
         std::env::current_dir().ok(),
+        std::env::current_exe().ok().and_then(|p| p.parent().map(Path::to_path_buf)),
         std::env::var("FCES_INFOMAP_DIR").ok().map(PathBuf::from),
     ]
     .into_iter()
